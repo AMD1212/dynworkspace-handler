@@ -1,0 +1,22 @@
+#!/bin/bash
+
+while getopts ":m" opt; do
+  case $opt in
+    m)
+      move=true
+      ;;
+    \?)
+      echo "Invalid option: -$OPTARG" >&2
+      ;;
+  esac
+done
+
+workspace=$(i3-msg -t get_workspaces | jq '.[] | [.name] | tostring' | cut -d "\"" -f 3 | cut -d "\\" -f 1 | dmenu)
+
+if [ "$move" == "true" ]
+then
+	i3-msg move container to workspace "${workspace}"
+else
+	i3-msg workspace "${workspace}"
+fi
+
