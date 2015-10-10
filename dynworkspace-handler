@@ -11,7 +11,7 @@ while getopts ":m" opt; do
   esac
 done
 
-workspace=$(i3-msg -t get_workspaces | jq '.[] | [.name] | tostring' | cut -d "\"" -f 3 | cut -d "\\" -f 1 | dmenu)
+workspace=$(i3-msg -t get_workspaces | jq -r '.[] | .name' | dmenu)
 
 if [ "$move" == "true" ]
 then
