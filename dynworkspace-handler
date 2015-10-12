@@ -11,9 +11,7 @@ while getopts ":m" opt; do
   esac
 done
 
-#actwsp=$(i3-msg -t get_outputs | jq -r '.[] | .current_workspace' | grep -v null)
-actwsp=$(i3-msg -t get_workspaces | jq -r '.[] | .name,.focused' | grep -in . | grep $(($(i3-msg -t get_workspaces | jq -r '.[] | .name,.focused' | grep -in true  | cut -f1 -d\:)-1))\:.* | cut -f2 -d\:)
-workspace=$(i3-msg -t get_workspaces | jq -r '.[] | .name' | grep -v "^$actwsp$" | dmenu)
+workspace=$(i3-msg -t get_workspaces | jq -r -c '.[] | [.name,.focused]' | grep ",false]" | cut -d "\"" -f 2)
 
 if [ "$move" == "true" ]
 then
