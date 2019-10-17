@@ -1,9 +1,15 @@
 #!/bin/bash
 
-while getopts ":m" opt; do
+font="xos4 terminus-8"
+
+while getopts "mo" opt; do
   case $opt in
     m)
       move=true
+      echo lol
+      ;;
+    o)
+      move_output=true
       ;;
     \?)
       echo "Invalid option: -$OPTARG" >&2
@@ -11,12 +17,49 @@ while getopts ":m" opt; do
   esac
 done
 
-workspace=$(i3-msg -t get_workspaces | jq -r -c '.[] | [.name,.focused]' | grep ",false]" | cut -d "\"" -f 2 | dmenu)
-
-if [ "$move" == "true" ]
+if [[ "$move_output" == "true" ]]
 then
-	i3-msg move container to workspace "${workspace}"
-else
-	i3-msg workspace "${workspace}"
-fi
+  if hash xterm
+  then
+    i3-msg -t get_outputs | jq -r -c '.[] | [.name,.current_workspace,.active]' | grep ",true]" | cut -d"\"" -f2 | while read output; do
+      if hash figlet
+      then
+        xterm -class "dynworkspace-handler-output-$output" -e "figlet $output; read" &
+      else
+        xterm -class "dynworkspace-handler-output-$output" -e "echo $output; read" &
+      fi
 
+      while true
+      do
+        if i3-msg -t get_tree | egrep ".+class.+dynworkspace-handler-output-$output.+" 2>/dev/null >/dev/null
+        then
+          i3-msg "[class=dynworkspace-handler-output-$output] sticky enable; floating enable; border none; move to output $output;"
+          i3-msg "[class=dynworkspace-handler-output-$output] move position center;"
+          break
+        fi
+        sleep 0.1
+      done
+    done
+  fi
+
+  current_workspace=$(i3-msg -t get_workspaces | jq -r -c '.[] | [.name,.focused]' | grep ",true]" | cut -d"\"" -f2)
+  chosen_output=$(i3-msg -t get_outputs | jq -r -c '.[] | [.name,.current_workspace,.active]' | grep ",true]" | grep -v ",\"$current_workspace\"," | cut -d "\"" -f 2 | dmenu -fn "$font")
+
+  i3-msg move workspace to output $chosen_output
+
+  if hash xterm
+  then
+    i3-msg -t get_outputs | jq -r -c '.[] | [.name,.current_workspace,.active]' | grep ",true]" | cut -d"\"" -f2 | while read output; do
+      i3-msg "[class=dynworkspace-handler-output-$output] kill" &
+    done
+  fi
+else
+  workspace=$(i3-msg -t get_workspaces | jq -r -c '.[] | [.name,.focused]' | grep ",false]" | cut -d "\"" -f 2 | dmenu -fn "$font")
+
+  if [ "$move" == "true" ]
+  then
+    i3-msg move container to workspace "${workspace}"
+  else
+    i3-msg workspace "${workspace}"
+  fi
+fi
