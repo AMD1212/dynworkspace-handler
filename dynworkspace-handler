@@ -1,12 +1,19 @@
 #!/bin/bash
 
+# Defaults
 font="xos4 terminus-8"
+monitornames=true
+
+# Override via ~/.config/i3/dynworkspace-handlerrc
+if [ -f ~/.config/i3/dynworkspace-handlerrc ]
+then
+  source ~/.config/i3/dynworkspace-handlerrc
+fi
 
 while getopts "mo" opt; do
   case $opt in
     m)
       move=true
-      echo lol
       ;;
     o)
       move_output=true
@@ -17,46 +24,52 @@ while getopts "mo" opt; do
   esac
 done
 
-if [[ "$move_output" == "true" ]]
+if [ ${move_output} == "true" ]
 then
-  if hash xterm
+  if hash xterm && ${monitornames}
   then
-    i3-msg -t get_outputs | jq -r -c '.[] | [.name,.current_workspace,.active]' | grep ",true]" | cut -d"\"" -f2 | while read output; do
-      if hash figlet
-      then
-        xterm -class "dynworkspace-handler-output-$output" -e "figlet $output; read" &
-      else
-        xterm -class "dynworkspace-handler-output-$output" -e "echo $output; read" &
-      fi
-
-      while true
-      do
-        if i3-msg -t get_tree | egrep ".+class.+dynworkspace-handler-output-$output.+" 2>/dev/null >/dev/null
+    output_number=$(i3-msg -t get_outputs | jq -r -c '.[] | [.name,.current_workspace,.active]' | grep ",true]" | wc -l)
+    if [ ${output_number} -gt 1 ]
+    then
+      i3-msg -t get_outputs | jq -r -c '.[] | [.name,.current_workspace,.active]' | grep ",true]" | cut -d"\"" -f2 | while read output; do
+        if hash figlet
         then
-          i3-msg "[class=dynworkspace-handler-output-$output] sticky enable; floating enable; border none; move to output $output;"
-          i3-msg "[class=dynworkspace-handler-output-$output] move position center;"
-          break
+          xterm -class "dynworkspace-handler-output-$output" -e "figlet $output; read" &
+        else
+          xterm -class "dynworkspace-handler-output-$output" -e "echo $output; read" &
         fi
-        sleep 0.1
+
+        while true
+        do
+          if i3-msg -t get_tree | egrep ".+class.+dynworkspace-handler-output-$output.+" 2>/dev/null >/dev/null
+          then
+            i3-msg "[class=dynworkspace-handler-output-$output] sticky enable; floating enable; border none; move to output $output;"
+            i3-msg "[class=dynworkspace-handler-output-$output] move position center;"
+            break
+          fi
+          sleep 0.1
+        done
       done
-    done
-  fi
 
-  current_workspace=$(i3-msg -t get_workspaces | jq -r -c '.[] | [.name,.focused]' | grep ",true]" | cut -d"\"" -f2)
-  chosen_output=$(i3-msg -t get_outputs | jq -r -c '.[] | [.name,.current_workspace,.active]' | grep ",true]" | grep -v ",\"$current_workspace\"," | cut -d "\"" -f 2 | dmenu -fn "$font")
+      current_workspace=$(i3-msg -t get_workspaces | jq -r -c '.[] | [.name,.focused]' | grep ",true]" | cut -d"\"" -f2)
+      chosen_output=$(i3-msg -t get_outputs | jq -r -c '.[] | [.name,.current_workspace,.active]' | grep ",true]" | grep -v ",\"${current_workspace}\"," | cut -d "\"" -f 2 | dmenu -fn "${font}")
 
-  i3-msg move workspace to output $chosen_output
+      i3-msg move workspace to output "${chosen_output}"
 
-  if hash xterm
-  then
-    i3-msg -t get_outputs | jq -r -c '.[] | [.name,.current_workspace,.active]' | grep ",true]" | cut -d"\"" -f2 | while read output; do
-      i3-msg "[class=dynworkspace-handler-output-$output] kill" &
-    done
+      if hash xterm && ${monitornames}
+      then
+        i3-msg -t get_outputs | jq -r -c '.[] | [.name,.current_workspace,.active]' | grep ",true]" | cut -d"\"" -f2 | while read output; do
+          i3-msg "[class=dynworkspace-handler-output-$output] kill" &
+        done
+      fi
+    else
+      echo "Only one output found" | dmenu -fn "${font}"
+    fi
   fi
 else
   workspace=$(i3-msg -t get_workspaces | jq -r -c '.[] | [.name,.focused]' | grep ",false]" | cut -d "\"" -f 2 | dmenu -fn "$font")
 
-  if [ "$move" == "true" ]
+  if [ ${move} == "true" ]
   then
     i3-msg move container to workspace "${workspace}"
   else
