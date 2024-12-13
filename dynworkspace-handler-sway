@@ -1,0 +1,81 @@
+#!/run/current-system/sw/bin/bash
+
+# Defaults
+font="xos4 terminus-8"
+monitornames=true
+move=false
+move_output=false
+dmenu="wofi -d --xoffset 0 --yoffset 0 --gtk-dark -a --insensitive"
+
+# Override via ~/.config/i3/dynworkspace-handlerrc
+if [ -f ~/.config/i3/dynworkspace-handlerrc ]
+then
+  source ~/.config/i3/dynworkspace-handlerrc
+fi
+
+while getopts "mo" opt; do
+  case $opt in
+    m)
+      move=true
+      ;;
+    o)
+      move_output=true
+      ;;
+    \?)
+      echo "Invalid option: -$OPTARG" >&2
+      ;;
+  esac
+done
+
+if [ ${move_output} == "true" ]
+then
+  if hash xterm && ${monitornames}
+  then
+    output_number=$(swaymsg -r -t get_outputs | jq -r -c '.[] | [.name,.current_workspace,.active]' | grep ",true]" | wc -l)
+    if [ ${output_number} -gt 1 ]
+    then
+      swaymsg -r -t get_outputs | jq -r -c '.[] | [.name,.current_workspace,.active]' | grep ",true]" | cut -d"\"" -f2 | while read output; do
+        if hash figlet
+        then
+          xterm -class "dynworkspace-handler-output-$output" -e "figlet $output; read" &
+        else
+          xterm -class "dynworkspace-handler-output-$output" -e "echo $output; read" &
+        fi
+
+        while true
+        do
+          if swaymsg -r -t get_tree | egrep ".+class.+dynworkspace-handler-output-$output.+" 2>/dev/null >/dev/null
+          then
+            swaymsg "[class=dynworkspace-handler-output-$output] sticky enable; floating enable; border none; move to output $output;"
+            swaymsg "[class=dynworkspace-handler-output-$output] move position center;"
+            break
+          fi
+          sleep 0.1
+        done
+      done
+
+      current_workspace=$(swaymsg -r -t get_workspaces | jq -r -c '.[] | [.name,.focused]' | grep ",true]" | cut -d"\"" -f2)
+      chosen_output=$(swaymsg -r -t get_outputs | jq -r -c '.[] | [.name,.current_workspace,.active]' | grep ",true]" | grep -v ",\"${current_workspace}\"," | cut -d "\"" -f 2 | $dmenu -fn "${font}")
+
+      swaymsg move workspace to output "${chosen_output}"
+
+      if hash xterm && ${monitornames}
+      then
+        swaymsg -r -t get_outputs | jq -r -c '.[] | [.name,.current_workspace,.active]' | grep ",true]" | cut -d"\"" -f2 | while read output; do
+          swaymsg "[class=dynworkspace-handler-output-$output] kill" &
+        done
+      fi
+    else
+      echo "Only one output found" | $dmenu
+    fi
+  fi
+else
+  workspace=$(swaymsg -r -t get_workspaces | jq -r -c '.[] | [.name,.focused]' | grep ",false]" | cut -d "\"" -f 2 | $dmenu)
+
+  if [ ${move} == "true" ]
+  then
+    swaymsg move container to workspace "${workspace}"
+  else
+    swaymsg workspace "${workspace}"
+  fi
+fi
